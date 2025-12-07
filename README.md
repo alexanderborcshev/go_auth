@@ -36,11 +36,7 @@ DB_PATH=app.db
 
 ### Как запустить
 1) Установите переменные окружения (минимум `JWT_SECRET`):
-```
-export JWT_SECRET="super-secret-change-me"
-export PORT=8080
-export DB_PATH=app.db
-```
+
 2) Запустите сервер:
 ```
 go run ./cmd/server
