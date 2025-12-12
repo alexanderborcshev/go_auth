@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"tg-bot-test/handlers"
-	"tg-bot-test/internal/database"
-	"tg-bot-test/middleware"
-	"tg-bot-test/models"
-	cfg "tg-bot-test/pkg/config"
+	"go-auth/handlers"
+	"go-auth/internal/database"
+	"go-auth/middleware"
+	"go-auth/models"
+	cfg "go-auth/pkg/config"
 )
 
 func setupRouter(db *gorm.DB, jwtSecret string) *gin.Engine {

@@ -3,7 +3,7 @@ package repository
 import (
 	"gorm.io/gorm"
 
-	"tg-bot-test/models"
+	"go-auth/models"
 )
 
 // UserRepository defines persistence operations for users.
@@ -45,6 +45,7 @@ func (r *GormUserRepository) FindByUsername(username string) (*models.User, erro
 }
 
 func (r *GormUserRepository) Update(user *models.User) error {
+
 	return r.db.Save(user).Error
 }
 

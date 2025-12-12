@@ -9,9 +9,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 
-	"tg-bot-test/middleware"
-	"tg-bot-test/models"
-	"tg-bot-test/pkg/security"
+	"go-auth/internal/repository"
+	"go-auth/middleware"
+	"go-auth/models"
+	"go-auth/pkg/security"
 )
 
 type Handlers struct {
@@ -62,7 +63,8 @@ func (h *Handlers) Register(c *gin.Context) {
 		return
 	}
 	user := models.User{Username: req.Username, Password: hashed, Role: req.Role}
-	if err := h.db.Create(&user).Error; err != nil {
+	repo := repository.NewGormUserRepository(h.db)
+	if err := repo.Create(&user); err != nil {
 		writeJSONError(c, http.StatusBadRequest, "could not create user: "+err.Error())
 		return
 	}
@@ -76,8 +78,9 @@ func (h *Handlers) Login(c *gin.Context) {
 		writeJSONError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	var user models.User
-	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+	repo := repository.NewGormUserRepository(h.db)
+	user, err := repo.FindByUsername(req.Username)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeJSONError(c, http.StatusUnauthorized, "invalid credentials")
 			return
@@ -90,7 +93,7 @@ func (h *Handlers) Login(c *gin.Context) {
 		return
 	}
 
-	tokenString, err := h.generateJWT(&user)
+	tokenString, err := h.generateJWT(user)
 	if err != nil {
 		writeJSONError(c, http.StatusInternalServerError, "failed to sign token")
 		return
@@ -105,8 +108,9 @@ func (h *Handlers) GetProfile(c *gin.Context) {
 		writeJSONError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var user models.User
-	if err := h.db.First(&user, uid).Error; err != nil {
+	repo := repository.NewGormUserRepository(h.db)
+	user, err := repo.FindByID(uid)
+	if err != nil {
 		writeJSONError(c, http.StatusNotFound, "user not found")
 		return
 	}
@@ -125,9 +129,16 @@ func (h *Handlers) UpdateProfile(c *gin.Context) {
 		writeJSONError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	updates := map[string]any{}
+	repo := repository.NewGormUserRepository(h.db)
+	user, err := repo.FindByID(uid)
+	if err != nil {
+		writeJSONError(c, http.StatusNotFound, "user not found")
+		return
+	}
+	isUpdateRequired := false
 	if req.Username != nil {
-		updates["username"] = *req.Username
+		user.Username = *req.Username
+		isUpdateRequired = true
 	}
 	if req.Password != nil {
 		hash, err := security.HashPassword(*req.Password)
@@ -135,13 +146,14 @@ func (h *Handlers) UpdateProfile(c *gin.Context) {
 			writeJSONError(c, http.StatusInternalServerError, "failed to hash password")
 			return
 		}
-		updates["password"] = hash
+		user.SetPasswordHash(hash)
+		isUpdateRequired = true
 	}
-	if len(updates) == 0 {
+	if isUpdateRequired {
 		writeJSONError(c, http.StatusBadRequest, "nothing to update")
 		return
 	}
-	if err := h.db.Model(&models.User{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
+	if err := repo.Update(user); err != nil {
 		writeJSONError(c, http.StatusBadRequest, "update failed: "+err.Error())
 		return
 	}
@@ -150,12 +162,13 @@ func (h *Handlers) UpdateProfile(c *gin.Context) {
 
 // DeleteUser deletes a user by id; admin only (enforced by middleware).
 func (h *Handlers) DeleteUser(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		writeJSONError(c, http.StatusBadRequest, "missing id")
+	uid, ok := getUserIDFromCtx(c)
+	if !ok {
+		writeJSONError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if err := h.db.Delete(&models.User{}, id).Error; err != nil {
+	repo := repository.NewGormUserRepository(h.db)
+	if err := repo.Delete(uid); err != nil {
 		writeJSONError(c, http.StatusBadRequest, "delete failed: "+err.Error())
 		return
 	}

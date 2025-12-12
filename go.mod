@@ -1,4 +1,4 @@
-module tg-bot-test
+module go-auth
 
 go 1.24.0
 
